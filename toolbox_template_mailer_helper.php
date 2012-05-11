@@ -1,172 +1,151 @@
-<?php 
+<?php
 
-if (!class_exists('Toolbox_Template_Mailer'))
-{
-    require_once APPPATH . 'libraries/Template.php';
+class Template_mailer {
     
     /**
-     * Lets you easily send an email that uses an EE template as the message body
-     *
-     * @package Toolbox
-     * @author Thomas Brewer
-     **/
-    class Toolbox_Template_Mailer {
-
-        public $EE = NULL;
-
-        public $to = '';
-
-        public $from = '';
-
-        public $subject = '';
-
-        public $message = '';
-
-        public $bcc = ''; 
-
-        public $email_data = array();
-
-        /**
-         * __construct
-         *
-         * @access public
-         * @param  string $to
-         * @param  string $from
-         * @param  string $subject (optional)   
-         * @param  string $bcc (optional)   
-         * @return void
-         * 
-         **/
-        public function __construct($to, $from, $subject = '', $bcc = NULL) 
-        {    
-            $this->EE = get_instance();
-
-            $this->EE->TMPL = new EE_Template();
-
-            $this->to = $to;
-
-            $this->from = $from;
-
-            $this->subject = $subject;
-
-            $this->bcc = $bcc;  
-
-            $this->EE->load->library('email');  
-
-            $this->EE->load->helper('text'); 
-
-            $this->EE->email->wordwrap = true;
-
-            $this->EE->email->mailtype = 'html'; 
-        } 
-
-        /**
-         *  set
-         *
-         * @access public
-         * @param  string $key  
-         * @param  string $value
-         * @return void
-         * 
-         **/
-        public function set($key, $value = NULL) 
-        {                     
-            if (is_array($key))
-            {
-                $this->email_data = array_merge($this->email_data, $key);
-            }   
-            else
-            {
-                $this->email_data[$key] = $value;
-            }
-        }
-
-        /**
-         * template
-         *
-         * @access public
-         * @param  string $template 
-         * @return void
-         * 
-         **/
-        public function template($template) 
+     * @var  object
+     */
+    protected $EE;
+    
+    /**
+     * @var  array
+     */
+    protected $vars = array();
+    
+    /**
+     * Constructor
+     */
+    public function __construct()
+    {
+        $this->EE =& get_instance();
+        
+        if( ! isset($this->EE->TMPL))
         {
-            if (!empty($template))
-            {
-                foreach ($this->email_data as $key => $value) 
-                {
-                    $this->EE->config->_global_vars[$key] = $value;
-                }  
-
-                //needed to be able to access .hidden templates
-                $this->EE->TMPL->depth = 1;
-
-                list($template_group, $template_name) = explode('/', $template);
-
-                $this->EE->TMPL->fetch_and_parse($template_group, $template_name, FALSE);
-
-                $this->EE->TMPL->cache_status = 'NO_CACHE';
-
-                $template = $this->EE->TMPL->fetch_template($template_group, $template_name, FALSE, $this->EE->config->item('site_id'));
-
-                $this->EE->TMPL->parse($template, FALSE, $this->EE->config->item('site_id'));
-
-                $this->message = $this->EE->TMPL->final_template;
-
-                $this->message = $this->EE->TMPL->parse_globals($this->message);
-
-                //clean up
-                $this->EE->TMPL->depth = 0;
-
-                foreach (array_values($this->email_data) as $key) 
-                {
-                    unset($this->EE->config->_global_vars[$key]);    
-                }
-            }
+            $this->EE->load->library('template', NULL, 'TMPL');
         }
-
-        /**
-         * send
-         *
-         * @access public
-         * @param  string $template 
-         * @return bool
-         * 
-         **/
-        public function send($template = NULL) 
-        {   
-            //are we passing a template to the send method?
-            if ($template !== NULL)
+        
+        $this->EE->load->library('email');
+        
+        $this->EE->email->initialize(array(
+            'mailtype' => 'html',
+        ));
+    }
+    
+    /**
+     * Magic method for function calls
+     *
+     * @param   mixed
+     * @param   array
+     * @return  mixed|void
+     */
+    public function __call($name, $args)
+    {
+        $name = strtolower($name);
+        
+        $valid_methods = array(
+            'from',
+            'reply_to',
+            'to',
+            'cc',
+            'bcc',
+            'subject',
+            'set_alt_message',
+            'attach',
+            'print_debugger'
+        );
+        
+        // if the method name maps to the email class, call it
+        if(in_array($name, $valid_methods))
+        {
+            $result = call_user_func_array(array($this->EE->email, $name), $args);
+            
+            if($result !== NULL)
             {
-                $this->template($template);
+                return $result;
             }
-
-            //if we have no message we cannot send - so bail out...
-            if (empty($this->message))
-            {
-                return FALSE;
-            }
-
-            $this->EE->email->to($this->to); 
-
-            if (is_array($this->from) AND count($this->from) == 2)
-            {
-                $this->EE->email->from($this->from[0], $this->from[1]);
-            }
-            else if (!is_array($this->from))
-            {
-                $this->EE->email->from($this->from);
-            }
-
-            if ($this->bcc !== NULL)
-            {   
-                $this->EE->email->bcc($this->bcc);
-            }
-
-            $this->EE->email->subject($this->subject);
-            $this->EE->email->message(entities_to_ascii($this->message));
-
-            return $this->EE->email->Send();
         }
     }
+    
+    /**
+     * Set variables for tags in the email body
+     *
+     * @param  string
+     * @param  mixed
+     */
+    public function set($name, $value = NULL)
+    {
+        if(is_array($name))
+        {
+            $this->vars = array_merge($this->vars, $name);
+        }
+        else
+        {
+            $this->vars[$name] = $value;
+        }
+    }
+    
+    /**
+     * Sets the template to use for the message copy
+     *
+     * @param   string
+     * @return  string
+     */
+    protected function template($template)
+    {
+        // split the template group and name
+        $segments = explode('/', $template);
+        
+        // use index as name if not specified
+        if(count($segments) == 1)
+        {
+            $segments[1] = 'index';
+        }
+        
+        list($template_group, $template_name) = $segments;
+        
+        // set data items as global variables
+        foreach($this->vars as $key => $val)
+        {
+            $this->EE->config->_global_vars['email:'.$key] = $val;
+        }
+        
+        // parse the template
+        $this->EE->TMPL->cache_status = 'NO_CACHE';
+        $template = $this->EE->TMPL->fetch_template($template_group, $template_name, FALSE);
+        $body = $this->EE->TMPL->parse_globals($template);
+        $body = $this->EE->TMPL->parse_variables_row($body, $this->vars);
+        $this->EE->TMPL->parse($body, FALSE);
+        $body = $this->EE->TMPL->final_template;
+        
+        // unset data items
+        foreach($this->vars as $key => $val)
+        {
+            unset($this->EE->config->_global_vars['email:'.$key]);
+        }
+        
+        return $body;
+    }
+    
+    /**
+     * Sends the email
+     *
+     * @param   string|array|null
+     * @return  bool
+     */
+    public function send($template)
+    {
+        // get template output
+        $body = $this->template($template);
+        
+        // set message
+        $this->EE->email->message($body);
+        
+        // send the email
+        $result = $this->EE->email->send();
+        
+        $this->EE->email->clear();
+        
+        return $result;
+    }
+    
 }
