@@ -110,6 +110,10 @@ class Template_mailer {
         ee()->TMPL->parse($body, false);
         $body = ee()->TMPL->final_template;
         
+        // cleanup unparsed conditionals and annotations
+        $body = preg_replace("/".LD."if\s+.*?".RD.".*?".LD.'\/if'.RD."/s", "", $body);
+        $body = preg_replace("/\{!--.*?--\}/s", '', $body);
+        
         // unset data items
         foreach($this->vars as $key => $val)
         {
