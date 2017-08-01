@@ -3,11 +3,6 @@
 class Template_mailer {
     
     /**
-     * @var  object
-     */
-    protected $EE;
-    
-    /**
      * @var  array
      */
     protected $vars = array();
@@ -16,17 +11,15 @@ class Template_mailer {
      * Constructor
      */
     public function __construct()
-    {
-        $this->EE =& get_instance();
-        
-        if( ! isset($this->EE->TMPL))
+    {        
+        if( ! isset(ee()->TMPL))
         {
-            $this->EE->load->library('template', NULL, 'TMPL');
+            ee()->load->library('template', NULL, 'TMPL');
         }
         
-        $this->EE->load->library('email');
+        ee()->load->library('email');
         
-        $this->EE->email->initialize(array(
+        ee()->email->initialize(array(
             'mailtype' => 'html',
         ));
     }
@@ -57,7 +50,7 @@ class Template_mailer {
         // if the method name maps to the email class, call it
         if(in_array($name, $valid_methods))
         {
-            $result = call_user_func_array(array($this->EE->email, $name), $args);
+            $result = call_user_func_array(array(ee()->email, $name), $args);
             
             if($result !== NULL)
             {
@@ -106,21 +99,21 @@ class Template_mailer {
         // set data items as global variables
         foreach($this->vars as $key => $val)
         {
-            $this->EE->config->_global_vars['email:'.$key] = $val;
+            ee()->config->_global_vars['email:'.$key] = $val;
         }
         
         // parse the template
-        $this->EE->TMPL->cache_status = 'NO_CACHE';
-        $template = $this->EE->TMPL->fetch_template($template_group, $template_name, FALSE);
-        $body = $this->EE->TMPL->parse_globals($template);
-        $body = $this->EE->TMPL->parse_variables_row($body, $this->vars);
-        $this->EE->TMPL->parse($body, FALSE);
-        $body = $this->EE->TMPL->final_template;
+        ee()->TMPL->cache_status = 'NO_CACHE';
+        $template = ee()->TMPL->fetch_template($template_group, $template_name, false);
+        $body = ee()->TMPL->parse_globals($template);
+        $body = ee()->TMPL->parse_variables_row($body, $this->vars);
+        ee()->TMPL->parse($body, false);
+        $body = ee()->TMPL->final_template;
         
         // unset data items
         foreach($this->vars as $key => $val)
         {
-            unset($this->EE->config->_global_vars['email:'.$key]);
+            unset(ee()->config->_global_vars['email:'.$key]);
         }
         
         return $body;
@@ -138,12 +131,12 @@ class Template_mailer {
         $body = $this->template($template);
         
         // set message
-        $this->EE->email->message($body);
+        ee()->email->message($body);
         
         // send the email
-        $result = $this->EE->email->send();
+        $result = ee()->email->send();
         
-        $this->EE->email->clear();
+        ee()->email->clear();
         
         return $result;
     }
